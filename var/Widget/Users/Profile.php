@@ -222,6 +222,14 @@ class Widget_Users_Profile extends Widget_Users_Edit implements Widget_Interface
         $confirm->input->setAttribute('class', 'w-60');
         $form->addInput($confirm);
 
+        /** 双因素认证验证码 */
+        if($this->user->twoFactorAuthKey){
+            $twoFactorAuth = new Typecho_Widget_Helper_Form_Element_Password('twoFactorAuth', NULL, NULL, _t('验证码'), _t('请输入手机上显示的验证码.'));
+            $twoFactorAuth->input->setAttribute('class', 'w-60');
+            $twoFactorAuth->addRule('required', _t('请输入验证码'));
+            $form->addInput($twoFactorAuth);
+        }
+
         /** 用户动作 */
         $do = new Typecho_Widget_Helper_Form_Element_Hidden('do', NULL, 'password');
         $form->addInput($do);
@@ -235,6 +243,50 @@ class Widget_Users_Profile extends Widget_Users_Edit implements Widget_Interface
         $password->addRule('minLength', _t('为了保证账户安全, 请输入至少六位的密码'), 6);
         $confirm->addRule('confirm', _t('两次输入的密码不一致'), 'password');
 
+        return $form;
+    }
+
+    /**
+     * 双因素认证表单
+     *
+     * @access public
+     * @return Typecho_Widget_Helper_Form
+     */
+    public function twoFactorAuthForm(){
+        /** 构建表格 */
+        $form = new Typecho_Widget_Helper_Form($this->security->getIndex('/action/users-profile'),
+        Typecho_Widget_Helper_Form::POST_METHOD);
+        if($this->user->twoFactorAuthKey){
+            /** 验证码确认 */
+            $confirm = new Typecho_Widget_Helper_Form_Element_Text('confirm', NULL, NULL, _t('验证码'), _t('请输入验证码以停用双因素认证.'));
+            $confirm->input->setAttribute('class', 'w-60');
+            $confirm->addRule('required', _t('请输入验证码'));
+            $form->addInput($confirm);
+
+            $form->addItem(new Typecho_Widget_Helper_Form_Element_Hidden('do', NULL, 'twoFactorAuth'));
+            $submit = new Typecho_Widget_Helper_Form_Element_Submit('submit', NULL, _t('停用双因素认证'));
+            $submit->input->setAttribute('class', 'btn primary');
+            $form->addItem($submit);
+        } else {
+            /** 生成密钥 */
+            $secret = $this->widget('Widget_GoogleAuthenticator')->createSecret();
+            $qrlink = $this->widget('Widget_GoogleAuthenticator')->getQRCodeGoogleUrl('Typecho Blog', $secret);
+            $text = new Typecho_Widget_Helper_Layout('p', array());
+            $text->html(_t('请在手机上添加密钥 %s，并在下方输入手机上显示的验证码.<br><a href="%s" target="_blank">扫描二维码</a>', $secret, $qrlink));
+            $form->addItem($text);
+
+            /** 确认 */
+            $confirm = new Typecho_Widget_Helper_Form_Element_Text('confirm', NULL, NULL, _t('验证码'), NULL);
+            $confirm->input->setAttribute('class', 'w-60');
+            $confirm->addRule('required', _t('请输入验证码以确保双因素认证正确配置'));
+            $form->addInput($confirm);
+
+            $form->addItem(new Typecho_Widget_Helper_Form_Element_Hidden('secret', NULL, $secret));
+            $form->addItem(new Typecho_Widget_Helper_Form_Element_Hidden('do', NULL, 'twoFactorAuth'));
+            $submit = new Typecho_Widget_Helper_Form_Element_Submit('submit', NULL, _t('启用双因素认证'));
+            $submit->input->setAttribute('class', 'btn primary');
+            $form->addItem($submit);
+        }
         return $form;
     }
 
@@ -314,6 +366,14 @@ class Widget_Users_Profile extends Widget_Users_Edit implements Widget_Interface
             $this->response->goBack();
         }
 
+        /** 双因素认证验证码 */
+        if($this->user->twoFactorAuthKey){
+            if(!$this->widget('Widget_GoogleAuthenticator')->verifyCode($this->user->twoFactorAuthKey, $this->request->twoFactorAuth)){
+                $this->widget('Widget_Notice')->set(_t('验证码不正确'));
+                $this->response->goBack();
+            }
+        }
+
         $hasher = new PasswordHash(8, true);
         $password = $hasher->HashPassword($this->request->password);
 
@@ -389,6 +449,44 @@ class Widget_Users_Profile extends Widget_Users_Edit implements Widget_Interface
     }
 
     /**
+     * 更新双因素认证设置
+     *
+     * @access public
+     * @return void
+     */
+    public function updateTwoFactorAuth()
+    {
+        if ($this->twoFactorAuthForm()->validate()) {
+            $this->response->goBack();
+        }
+        if($this->user->twoFactorAuthKey){
+            if(!$this->widget('Widget_GoogleAuthenticator')->verifyCode($this->user->twoFactorAuthKey, $this->request->confirm)){
+                $this->widget('Widget_Notice')->set(_t('验证码不正确'));
+                $this->response->goBack();
+            } else {
+                $this->db->query($this->db->update('table.users')
+                ->rows(array('twoFactorAuthKey' => NULL))
+                ->where('uid = ?', intval($this->user->uid))
+                ->limit(1));
+                $this->widget('Widget_Notice')->set(_t('已停用双因素认证'));
+            }
+        } else {
+            if(!$this->widget('Widget_GoogleAuthenticator')->verifyCode($this->request->secret, $this->request->confirm)){
+                $this->widget('Widget_Notice')->set(_t('验证码不正确'));
+                $this->response->goBack();
+            } else {
+                $this->db->query($this->db->update('table.users')
+                ->rows(array('twoFactorAuthKey' => $this->request->secret))
+                ->where('uid = ?', intval($this->user->uid))
+                ->limit(1));
+                $this->widget('Widget_Notice')->set(_t('已启用双因素认证'));
+            }
+        }
+        /** 转向原页 */
+        $this->response->redirect(Typecho_Common::url('profile.php', $this->options->adminUrl));
+    }
+
+    /**
      * 用自有函数处理自定义配置信息
      *
      * @access public
@@ -419,6 +517,7 @@ class Widget_Users_Profile extends Widget_Users_Edit implements Widget_Interface
         $this->on($this->request->is('do=options'))->updateOptions();
         $this->on($this->request->is('do=password'))->updatePassword();
         $this->on($this->request->is('do=personal&plugin'))->updatePersonal();
+        $this->on($this->request->is('do=twoFactorAuth'))->updateTwoFactorAuth();
         $this->response->redirect($this->options->siteUrl);
     }
 }

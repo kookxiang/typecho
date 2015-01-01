@@ -44,6 +44,13 @@ $stat = Typecho_Widget::widget('Widget_Stat');
                     <?php Typecho_Widget::widget('Widget_Users_Profile')->personalFormList(); ?>
                     <?php Typecho_Widget::widget('Widget_Users_Profile')->passwordForm()->render(); ?>
                 </section>
+
+                <br>
+
+                <section id="two-factor-authentication">
+                    <h3><?php _e('双因素认证'); ?></h3>
+                    <?php Typecho_Widget::widget('Widget_Users_Profile')->twoFactorAuthForm()->render(); ?>
+                </section>
             </div>
         </div>
     </div>
