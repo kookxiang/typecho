@@ -51,6 +51,19 @@ class Widget_Login extends Widget_Abstract_Users implements Widget_Interface_Do
             $this->response->goBack();
         }
 
+        /** 先验证动态密码 **/
+        $user = $this->db->fetchRow($this->select()->where('name = ?', $this->request->name)->limit(1));
+        if($user['twoFactorAuthKey']){
+            if($this->request->twoFactAuth){
+                if(!$this->widget('Widget_GoogleAuthenticator')->verifyCode($user['twoFactorAuthKey'], $this->request->twoFactAuth)){
+                    $this->widget('Widget_Notice')->set(_t('动态密码不正确'));
+                    $this->response->goBack();
+                }
+            }else{
+                $this->response->redirect($this->options->adminUrl.'login.php?requireTwoFactAuth=yes');
+            }
+        }
+
         /** 开始验证用户 **/
         $valid = $this->user->login($this->request->name, $this->request->password,
         false, 1 == $this->request->remember ? $this->options->gmtTime + $this->options->timezone + 30*24*3600 : 0);

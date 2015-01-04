@@ -23,6 +23,12 @@ include 'header.php';
                 <label for="password" class="sr-only"><?php _e('密码'); ?></label>
                 <input type="password" id="password" name="password" class="text-l w-100" placeholder="<?php _e('密码'); ?>" />
             </p>
+            <?php if($request->get('requireTwoFactAuth')){ ?>
+            <p>
+                <label for="twoFactAuth" class="sr-only"><?php _e('动态密码'); ?></label>
+                <input type="text" id="twoFactAuth" name="twoFactAuth" class="text-l w-100" placeholder="<?php _e('动态密码'); ?>" />
+            </p>
+            <?php } ?>
             <p class="submit">
                 <button type="submit" class="btn btn-l w-100 primary"><?php _e('登录'); ?></button>
                 <input type="hidden" name="referer" value="<?php echo htmlspecialchars($request->get('referer')); ?>" />
