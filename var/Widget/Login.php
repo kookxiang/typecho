@@ -55,7 +55,7 @@ class Widget_Login extends Widget_Abstract_Users implements Widget_Interface_Do
         $user = $this->db->fetchRow($this->select()->where('name = ?', $this->request->name)->limit(1));
         if($user['twoFactorAuthKey']){
             if($this->request->twoFactAuth){
-                if(!$this->widget('Widget_GoogleAuthenticator')->verifyCode($user['twoFactorAuthKey'], $this->request->twoFactAuth)){
+                if(!$this->widget('Widget_GoogleAuthenticator')->verifyCode($user['twoFactorAuthKey'], $this->request->twoFactAuth, 2)){
                     $this->widget('Widget_Notice')->set(_t('动态密码不正确'));
                     $this->response->goBack();
                 }
