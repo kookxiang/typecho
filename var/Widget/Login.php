@@ -60,6 +60,7 @@ class Widget_Login extends Widget_Abstract_Users implements Widget_Interface_Do
                     $this->response->goBack();
                 }
             }else{
+                Typecho_Cookie::set('__typecho_remember_name', $this->request->name);
                 $this->response->redirect($this->options->adminUrl.'login.php?requireTwoFactAuth=yes');
             }
         }
